@@ -1,0 +1,232 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ProfileImage {
+  image_id  Int    @id @default(autoincrement())
+  owner     User   @relation(fields: [user_id], references: [user_id])
+  user_id   Int    @unique
+  url       String @db.VarChar(255)
+  public_id String @db.VarChar(255)
+}
+
+model RefreshToken {
+  id         Int       @id @default(autoincrement())
+  token      String    @unique @db.VarChar(255)
+  created_at DateTime  @default(now())
+  expires_at DateTime
+  revoked_at DateTime?
+  user       User      @relation(fields: [user_id], references: [user_id])
+  user_id    Int
+}
+
+model Notification {
+  notification_id Int              @id @default(autoincrement())
+  type            NotificationType
+  message         String           @db.VarChar(255)
+  created_at      DateTime         @default(now())
+  read_at         DateTime?
+  user_id         Int
+  user            User             @relation(fields: [user_id], references: [user_id])
+}
+
+model User {
+  user_id                         Int           @id @default(autoincrement())
+  first_name                      String        @db.VarChar(100)
+  last_name                       String        @db.VarChar(100)
+  email                           String        @unique @db.VarChar(100)
+  password                        String        @db.VarChar(255)
+  phone                           String?       @unique @db.VarChar(15)
+  city                            String?       @db.VarChar(100)
+  address                         String?       @db.VarChar(100)
+  state                           String?       @db.VarChar(100)
+  governorate                     String?       @db.VarChar(100)
+  status                          AccountStatus @default(PENDING)
+  created_at                      DateTime      @default(now())
+  updated_at                      DateTime      @updatedAt
+  password_changed_at             DateTime?
+  password_reset_code             String?       @db.VarChar(6)
+  password_reset_code_expire_date DateTime?
+  password_reset_code_verified    Boolean       @default(false) @db.Boolean
+  profile_image                   ProfileImage?
+  role                            Role          @default(PATIENT)
+
+  refresh_tokens  RefreshToken[]
+  notifications   Notification[]
+  managed_clinics Clinic[]
+  doctor          Doctor?
+  patient         Patient?
+}
+
+model Speciality {
+  speciality_id Int      @id @default(autoincrement())
+  name          String   @unique @db.VarChar(255)
+  description   String?  @db.VarChar(255)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  doctors       Doctor[]
+}
+
+model Clinic {
+  clinic_id      Int            @id @default(autoincrement())
+  name           String         @unique @db.VarChar(255)
+  description    String?        @db.VarChar(255)
+  phone          String         @unique @db.VarChar(15)
+  email          String?        @unique @db.VarChar(255)
+  address        String         @db.VarChar(255)
+  city           String         @db.VarChar(255)
+  governorate    String         @db.VarChar(255)
+  state          String         @db.VarChar(255)
+  longitude      Decimal        @db.Decimal(10, 7)
+  latitude       Decimal        @db.Decimal(10, 7)
+  license_number String         @unique @db.VarChar(50)
+  status         ClinicStatus   @default(PENDING)
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  manager_id     Int
+  clinic_manager User           @relation(fields: [manager_id], references: [user_id])
+  doctor_clinics DoctorClinic[]
+}
+
+model Doctor {
+  doctor_id           Int            @id @default(autoincrement())
+  bio                 String?        @db.VarChar(1000)
+  years_of_experience Int
+  license_number      String         @unique @db.VarChar(50)
+  status              DoctorStatus   @default(PENDING)
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+  speciality_id       Int
+  speciality          Speciality     @relation(fields: [speciality_id], references: [speciality_id])
+  doctor_clinics      DoctorClinic[]
+  user_id             Int            @unique
+  user                User           @relation(fields: [user_id], references: [user_id])
+}
+
+model DoctorClinic {
+  id               Int      @id @default(autoincrement())
+  doctor_id        Int
+  doctor           Doctor   @relation(fields: [doctor_id], references: [doctor_id])
+  clinic_id        Int
+  clinic           Clinic   @relation(fields: [clinic_id], references: [clinic_id])
+  consultation_fee Decimal  @db.Decimal(10, 2)
+  follow_up_fee    Decimal  @db.Decimal(10, 2)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  doctorSchedules DoctorSchedule[]
+
+  @@unique([clinic_id, doctor_id])
+}
+
+model DoctorSchedule {
+  schedule_id      Int          @id @default(autoincrement())
+  day_of_week      DayOfWeek
+  start_time       DateTime     @db.Time
+  end_time         DateTime     @db.Time
+  slot_duration    Int
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+  doctor_clinic_id Int
+  doctor_clinic    DoctorClinic @relation(fields: [doctor_clinic_id], references: [id])
+
+  @@unique([day_of_week, start_time, end_time, slot_duration, doctor_clinic_id])
+}
+
+model Patient {
+  patient_id    Int      @id @default(autoincrement())
+  date_of_birth DateTime @db.Date
+  gender        Gender
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  user_id       Int      @unique
+  user          User     @relation(fields: [user_id], references: [user_id])
+}
+
+model Appointment {
+  appointment_id Int @id @default(autoincrement())
+  appointment_date DateTime @db.Date
+}
+// ============ ENUMS ==============
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+  BANNED
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  CLINIC_MANAGER
+  ADMIN
+}
+
+enum NotificationType {
+  // Patient
+  APPOINTMENT_CREATED
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_RESCHEDULED
+  APPOINTMENT_REMINDER
+  APPOINTMENT_STARTED
+  APPOINTMENT_COMPLETED
+  APPOINTMENT_MISSED
+  DOCTOR_RUNNING_LATE
+  DOCTOR_AVAILABILITY_CHANGED
+  WAITLIST_AVAILABLE
+  APPOINTMENT_RESCHEDULE_REQUEST
+
+  // Doctor
+  NEW_APPOINTMENT
+  SCHEDULE_UPDATED
+
+  // Both
+  EMAIL_VERIFIED
+  PASSWORD_CHANGED
+  PASSWORD_RESET
+  LOGIN_ALERT
+}
+
+enum ClinicStatus {
+  REJECTED
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum DoctorStatus {
+  REJECTED
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum DayOfWeek {
+  SATURDAY
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+}
+
+enum Gender {
+  FEMALE
+  MALE
+}
