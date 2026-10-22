@@ -4,7 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../generated/prisma"
 }
 
@@ -14,7 +14,7 @@ datasource db {
 
 model ProfileImage {
   image_id  Int    @id @default(autoincrement())
-  owner     User   @relation(fields: [user_id], references: [user_id])
+  owner     User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   user_id   Int    @unique
   url       String @db.VarChar(255)
   public_id String @db.VarChar(255)
@@ -26,7 +26,7 @@ model RefreshToken {
   created_at DateTime  @default(now())
   expires_at DateTime
   revoked_at DateTime?
-  user       User      @relation(fields: [user_id], references: [user_id])
+  user       User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   user_id    Int
 }
 
@@ -37,7 +37,7 @@ model Notification {
   created_at      DateTime         @default(now())
   read_at         DateTime?
   user_id         Int
-  user            User             @relation(fields: [user_id], references: [user_id])
+  user            User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model User {
@@ -46,11 +46,11 @@ model User {
   last_name                       String        @db.VarChar(100)
   email                           String        @unique @db.VarChar(100)
   password                        String        @db.VarChar(255)
-  phone                           String?       @unique @db.VarChar(15)
-  city                            String?       @db.VarChar(100)
-  address                         String?       @db.VarChar(100)
-  state                           String?       @db.VarChar(100)
-  governorate                     String?       @db.VarChar(100)
+  phone                           String        @unique @db.VarChar(15)
+  city_id                         Int
+  city                            City          @relation(fields: [city_id], references: [id], onDelete: Restrict)
+  address                         String        @db.VarChar(100)
+  governorate                     Governorate
   status                          AccountStatus @default(PENDING)
   created_at                      DateTime      @default(now())
   updated_at                      DateTime      @updatedAt
@@ -66,6 +66,18 @@ model User {
   managed_clinics Clinic[]
   doctor          Doctor?
   patient         Patient?
+}
+
+model City {
+  id          Int         @id @default(autoincrement())
+  nameAr      String
+  nameEn      String
+  governorate Governorate
+
+  users User[]
+
+  @@unique([governorate, nameEn])
+  @@index([governorate])
 }
 
 model Speciality {
@@ -93,32 +105,34 @@ model Clinic {
   status         ClinicStatus   @default(PENDING)
   created_at     DateTime       @default(now())
   updated_at     DateTime       @updatedAt
-  manager_id     Int
-  clinic_manager User           @relation(fields: [manager_id], references: [user_id])
+  manager_id     Int?
+  clinic_manager User?          @relation(fields: [manager_id], references: [user_id], onDelete: SetNull)
   doctor_clinics DoctorClinic[]
 }
 
 model Doctor {
-  doctor_id           Int            @id @default(autoincrement())
-  bio                 String?        @db.VarChar(1000)
+  doctor_id           Int              @id @default(autoincrement())
+  bio                 String?          @db.VarChar(1000)
   years_of_experience Int
-  license_number      String         @unique @db.VarChar(50)
-  status              DoctorStatus   @default(PENDING)
-  created_at          DateTime       @default(now())
-  updated_at          DateTime       @updatedAt
+  license_number      String           @unique @db.VarChar(50)
+  issuing_authority   IssuingAuthority
+  expiry_date         DateTime         @db.Date()
+  status              DoctorStatus     @default(PENDING)
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
   speciality_id       Int
-  speciality          Speciality     @relation(fields: [speciality_id], references: [speciality_id])
+  speciality          Speciality       @relation(fields: [speciality_id], references: [speciality_id], onDelete: Restrict)
   doctor_clinics      DoctorClinic[]
-  user_id             Int            @unique
-  user                User           @relation(fields: [user_id], references: [user_id])
+  user_id             Int              @unique
+  user                User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model DoctorClinic {
   id               Int      @id @default(autoincrement())
   doctor_id        Int
-  doctor           Doctor   @relation(fields: [doctor_id], references: [doctor_id])
+  doctor           Doctor   @relation(fields: [doctor_id], references: [doctor_id], onDelete: Cascade)
   clinic_id        Int
-  clinic           Clinic   @relation(fields: [clinic_id], references: [clinic_id])
+  clinic           Clinic   @relation(fields: [clinic_id], references: [clinic_id], onDelete: Cascade)
   consultation_fee Decimal  @db.Decimal(10, 2)
   follow_up_fee    Decimal  @db.Decimal(10, 2)
   created_at       DateTime @default(now())
@@ -138,7 +152,7 @@ model DoctorSchedule {
   created_at       DateTime     @default(now())
   updated_at       DateTime     @updatedAt
   doctor_clinic_id Int
-  doctor_clinic    DoctorClinic @relation(fields: [doctor_clinic_id], references: [id])
+  doctor_clinic    DoctorClinic @relation(fields: [doctor_clinic_id], references: [id], onDelete: Cascade)
 
   @@unique([day_of_week, start_time, end_time, slot_duration, doctor_clinic_id])
 }
@@ -150,13 +164,14 @@ model Patient {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
   user_id       Int      @unique
-  user          User     @relation(fields: [user_id], references: [user_id])
+  user          User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model Appointment {
-  appointment_id Int @id @default(autoincrement())
+  appointment_id   Int      @id @default(autoincrement())
   appointment_date DateTime @db.Date
 }
+
 // ============ ENUMS ==============
 enum AccountStatus {
   PENDING
@@ -229,4 +244,39 @@ enum DayOfWeek {
 enum Gender {
   FEMALE
   MALE
+}
+
+enum Governorate {
+  CAIRO
+  GIZA
+  ALEXANDRIA
+  QALYUBIA
+  PORT_SAID
+  SUEZ
+  DAKAHLIA
+  SHARQIA
+  GHARBIA
+  MONUFIA
+  BEHEIRA
+  ISMAILIA
+  KAFR_EL_SHEIKH
+  DAMIETTA
+  FAYOUM
+  BENI_SUEF
+  MINYA
+  ASSIUT
+  SOHAG
+  QENA
+  LUXOR
+  ASWAN
+  RED_SEA
+  NEW_VALLEY
+  MATROUH
+  NORTH_SINAI
+  SOUTH_SINAI
+}
+
+enum IssuingAuthority {
+  EGYPTIAN_MEDICAL_SYNDICATE
+  MINISTRY_OF_HEALTH
 }

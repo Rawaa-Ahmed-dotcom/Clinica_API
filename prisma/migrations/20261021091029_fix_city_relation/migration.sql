@@ -1,0 +1,5 @@
+-- DropForeignKey
+ALTER TABLE "User" DROP CONSTRAINT "User_city_id_fkey";
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_city_id_fkey" FOREIGN KEY ("city_id") REFERENCES "City"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
