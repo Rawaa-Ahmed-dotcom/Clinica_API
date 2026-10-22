@@ -1,13 +1,13 @@
 import type { ZodType } from "zod/v4";
 import type { Request, Response, NextFunction } from "express";
-import z from "zod";
+import z, { type ZodTypeAny } from "zod";
 import { BaseError } from "../utils/BaseError.js";
 import { fromError } from "zod-validation-error";
 
 interface Schemas {
-  body?: ZodType;
-  params?: ZodType;
-  query?: ZodType;
+  body?: ZodTypeAny;
+  params?: ZodTypeAny;
+  query?: ZodTypeAny;
 }
 
 export const handleValidationErrors = (schemas: Schemas) => {
